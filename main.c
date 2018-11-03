@@ -6,6 +6,7 @@
 #include <threads.h>
 #include <time.h>
 */
+#include <signal.h>
 #include <unistd.h>
 
 #include <stdlib.h>
@@ -23,7 +24,12 @@ static struct timespec SLEEP_TIME { .tv_sec = 5 };
 
 void print_usage(const char *program_name);
 
+void init_signal_handler(void);
+void handle_signal(int signal);
+
 void send_status(struct sp_port *port);
+
+static struct sp_port *port = NULL;
 
 int main(int argc, char *argv[])
 {
@@ -34,8 +40,8 @@ int main(int argc, char *argv[])
 	}
 
 	init_statistics_retriever();
+	init_signal_handler();
 
-	struct sp_port *port = NULL;
 	const char *port_name = argv[1];
 	if (sp_get_port_by_name(port_name, &port) == SP_OK)
 	{
@@ -43,6 +49,8 @@ int main(int argc, char *argv[])
 		{
 			if (sp_set_baudrate(port, BAUDRATE) == SP_OK)
 			{
+				fprintf(stdout, "Opened port %s.\n", port_name);
+
 				/* // TODO: include once glibc 2.28 is widely available
 				do
 				{
@@ -54,7 +62,6 @@ int main(int argc, char *argv[])
 					send_status(port);
 				} while (sleep(SLEEP_TIME) == 0);
 				
-				sp_close(port);
 				return EXIT_SUCCESS;
 			}
 			else
@@ -94,6 +101,32 @@ void send_status(struct sp_port *port)
 	}
 
 	free(buffer);
+}
+
+void init_signal_handler(void)
+{
+	signal(SIGTERM, handle_signal);
+	signal(SIGINT, handle_signal);
+	signal(SIGKILL, handle_signal);
+}
+
+void handle_signal(int signal)
+{
+	sp_close(port);
+	fprintf(stdout, "Closed port.\n");
+	
+	switch (signal)
+	{
+	case SIGTERM:
+		fprintf(stdout, "Terminating with SIGTERM.\n");
+		break;
+	case SIGKILL:
+		fprintf(stdout, "Terminating with SIGKILL.\n");
+		break;
+	case SIGINT:
+		fprintf(stdout, "Terminating with SIGINT.\n");
+		break;
+	}
 }
 
 void print_usage(const char *program_name)
